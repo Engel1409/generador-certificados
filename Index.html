@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Generador de Certificados — Word + ZIP</title>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
 
@@ -62,6 +64,7 @@
     line-height:1.5;
   }
 
+  /* Sello / stamp signature element */
   .sello{
     flex:none;
     width:88px;height:88px;
@@ -146,6 +149,9 @@
   button:active:not(:disabled){transform:translateY(1px);}
   button:disabled{
     opacity:.35;cursor:not-allowed;
+  }
+  button.secundario{
+    background:transparent;color:var(--ink);border-color:var(--text-muted);
   }
 
   table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:4px;}
@@ -381,10 +387,13 @@
 
       plantillaBuffer = await wordFile.arrayBuffer();
       
-      // Usar PizZip para inspeccionar los contenidos de forma limpia
-      const zip = new PizZip(plantillaBuffer);
+      // Enlace dinámico con window para evitar el error "is not defined"
+      const PizZipConstructor = window.PizZip || window.pizZip;
+      if (!PizZipConstructor) {
+         throw new Error("La librería estructural (PizZip) no cargó correctamente en el navegador.");
+      }
       
-      // Inicializar temporalmente docxtemplater para extraer sus tags exactos
+      const zip = new PizZipConstructor(plantillaBuffer);
       const doc = new window.docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
       const inspect = doc.getInspector();
       const tagsMapeados = inspect.getTags();
@@ -422,22 +431,22 @@
     const errores = [];
     let generados = 0;
 
+    const PizZipConstructor = window.PizZip || window.pizZip;
+
     for (let i = 0; i < filasExcel.length; i++){
       const fila = Object.assign({}, filasExcel[i], {fecha});
 
       try {
-        // 1. Cargar el binario base en un nuevo PizZip por cada ciclo
-        const zipInterno = new PizZip(plantillaBuffer);
+        const zipInterno = new PizZipConstructor(plantillaBuffer);
 
-        // 2. Dejar que docxtemplater haga el merge respetando el 100% de los estilos y tablas
         const doc = new window.docxtemplater(zipInterno, {
             paragraphLoop: true,
             linebreaks: true,
         });
 
+        // Fusionar datos respetando fuentes, tablas, saltos y negritas originales
         doc.render(fila);
 
-        // 3. Obtener el archivo resultante sin corromper el XML interno
         const blobDocumento = doc.getZip().generate({
             type: 'blob',
             mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
