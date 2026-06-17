@@ -2,503 +2,108 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Generador de Certificados — Word + ZIP</title>
+<title>Generador DOCX</title>
 
+<!-- LIBRERÍAS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.4/dist/pizzip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docxtemplater@3.37.11/build/docxtemplater.js"></script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
-
-<style>
-  :root{
-    --ink:#121826;
-    --ink-2:#1c2438;
-    --ink-line:#2c3650;
-    --paper:#f7f2e7;
-    --paper-line:#d8cdb0;
-    --gold:#b8924a;
-    --gold-soft:#cdae74;
-    --stamp-red:#9b3232;
-    --ok-green:#2f6b4f;
-    --warn-amber:#a9742a;
-    --text-ink:#241f16;
-    --text-muted:#6b6354;
-    --text-light:#e7e0cf;
-    --font-display:Georgia,'Iowan Old Style','Palatino Linotype',serif;
-    --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-    --font-mono:ui-monospace,SFMono-Regular,Consolas,'Liberation Mono',monospace;
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    min-height:100vh;
-    background:
-      radial-gradient(ellipse at 20% -10%, #1d2742 0%, var(--ink) 55%);
-    font-family:var(--font-body);
-    color:var(--text-light);
-    padding:48px 20px 80px;
-  }
-  .contenedor{max-width:860px;margin:0 auto;}
-
-  .encabezado{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-    gap:24px;
-    margin-bottom:28px;
-  }
-  .encabezado h1{
-    font-family:var(--font-display);
-    font-size:30px;
-    margin:0 0 6px;
-    letter-spacing:.2px;
-    color:var(--text-light);
-  }
-  .encabezado p{
-    margin:0;
-    color:#a9b0c4;
-    font-size:14.5px;
-    max-width:480px;
-    line-height:1.5;
-  }
-
-  /* Sello / stamp signature element */
-  .sello{
-    flex:none;
-    width:88px;height:88px;
-    border-radius:50%;
-    border:2px solid var(--warn-amber);
-    display:flex;align-items:center;justify-content:center;
-    transform:rotate(-9deg);
-    position:relative;
-    transition:border-color .3s, color .3s;
-    color:var(--warn-amber);
-    opacity:.85;
-  }
-  .sello::before{
-    content:"";
-    position:absolute;inset:6px;
-    border:1px dashed currentColor;
-    border-radius:50%;
-  }
-  .sello .sello-texto{
-    font-family:var(--font-display);
-    font-weight:700;
-    font-size:12px;
-    letter-spacing:1.5px;
-    text-align:center;
-  }
-  .sello.listo{border-color:var(--ok-green);color:var(--ok-green);opacity:1;}
-  .sello.pendiente{border-color:var(--stamp-red);color:var(--stamp-red);opacity:1;}
-
-  .papel{
-    background:var(--paper);
-    color:var(--text-ink);
-    border-radius:3px;
-    box-shadow:0 30px 60px -20px rgba(0,0,0,.55), 0 0 0 1px rgba(184,146,74,.25);
-    padding:36px 40px 40px;
-  }
-
-  .seccion{padding:26px 0;border-bottom:1px solid var(--paper-line);}
-  .seccion:last-child{border-bottom:none;padding-bottom:0;}
-  .seccion h2{
-    font-family:var(--font-display);
-    font-size:18px;
-    margin:0 0 14px;
-    display:flex;align-items:baseline;gap:10px;
-  }
-  .seccion h2 .num{
-    font-family:var(--font-mono);
-    font-size:13px;
-    color:var(--gold);
-    border:1px solid var(--gold);
-    border-radius:50%;
-    width:22px;height:22px;
-    display:inline-flex;align-items:center;justify-content:center;
-    flex:none;
-  }
-
-  .campo-archivo{
-    display:flex;flex-direction:column;gap:6px;margin-bottom:16px;
-  }
-  .campo-archivo label{font-size:13.5px;font-weight:600;color:var(--text-muted);}
-  .campo-archivo input[type=file]{
-    font-family:var(--font-body);
-    font-size:13.5px;
-    padding:9px 10px;
-    border:1px solid var(--paper-line);
-    background:#fffdf8;
-    border-radius:2px;
-  }
-
-  button{
-    font-family:var(--font-body);
-    font-weight:600;
-    font-size:14px;
-    padding:11px 20px;
-    border-radius:2px;
-    border:1px solid var(--ink);
-    background:var(--ink);
-    color:var(--text-light);
-    cursor:pointer;
-    transition:opacity .15s, transform .05s;
-  }
-  button:hover:not(:disabled){opacity:.88;}
-  button:active:not(:disabled){transform:translateY(1px);}
-  button:disabled{
-    opacity:.35;cursor:not-allowed;
-  }
-  button.secundario{
-    background:transparent;color:var(--ink);border-color:var(--text-muted);
-  }
-
-  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:4px;}
-  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--paper-line);}
-  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:700;}
-  td code{font-family:var(--font-mono);font-size:12.5px;background:#efe7d4;padding:1px 5px;border-radius:2px;}
-  td.ok{color:var(--ok-green);font-weight:600;}
-  td.fail{color:var(--stamp-red);font-weight:600;}
-  td.warn{color:var(--warn-amber);font-weight:600;}
-
-  .dos-columnas{display:flex;gap:28px;flex-wrap:wrap;}
-  .dos-columnas > div{flex:1 1 300px;}
-
-  .estado{
-    margin-top:16px;padding:11px 14px;border-radius:2px;font-size:13.5px;font-weight:600;
-  }
-  .estado.ok{background:#e7f1eb;color:var(--ok-green);border:1px solid #bcd9c8;}
-  .estado.fail{background:#f5e6e6;color:var(--stamp-red);border:1px solid #e3bcbc;}
-
-  .ok-msg{color:var(--ok-green);font-size:13.5px;}
-
-  .info-filas{font-size:13.5px;color:var(--text-muted);margin:0 0 14px;}
-
-  .barra-contenedor{
-    height:8px;background:#e9e1cc;border-radius:4px;overflow:hidden;margin:14px 0 8px;
-  }
-  .barra{
-    height:100%;width:0%;background:var(--gold);transition:width .2s ease;
-  }
-  .estado-texto{font-size:13px;color:var(--text-muted);}
-  .log{font-size:12.5px;line-height:1.6;color:var(--stamp-red);margin-top:10px;max-height:160px;overflow-y:auto;}
-
-  footer{
-    max-width:860px;margin:26px auto 0;
-    font-size:12.5px;color:#8993ab;line-height:1.6;
-    border-top:1px solid var(--ink-line);
-    padding-top:16px;
-  }
-  footer strong{color:#a9b0c4;}
-
-  @media (max-width:600px){
-    body{padding:28px 14px 60px;}
-    .papel{padding:24px 20px 28px;}
-    .encabezado{flex-direction:column;}
-    .sello{align-self:flex-end;width:72px;height:72px;}
-    .dos-columnas{flex-direction:column;}
-  }
-</style>
 </head>
+
 <body>
-<div class="contenedor">
 
-  <div class="encabezado">
-    <div>
-      <h1>Generador de Certificados</h1>
-      <p>Excel + plantilla Word → un .docx por fila, todo dentro de un único ZIP. La conversión a PDF la haces tú después con tu script VBS local.</p>
-    </div>
-    <div class="sello" id="sello">
-      <span class="sello-texto" id="selloTexto">—</span>
-    </div>
-  </div>
+<h2>Generador Word desde Excel</h2>
 
-  <div class="papel">
+<input type="file" id="excel" accept=".xlsx"><br><br>
+<input type="file" id="word" accept=".docx"><br><br>
 
-    <div class="seccion">
-      <h2><span class="num">1</span>Cargar archivos</h2>
-      <div class="campo-archivo">
-        <label for="inputExcel">Excel (.xlsx) con los datos</label>
-        <input type="file" id="inputExcel" accept=".xlsx">
-      </div>
-      <div class="campo-archivo">
-        <label for="inputWord">Plantilla Word (.docx) con tags {{asi}}</label>
-        <input type="file" id="inputWord" accept=".docx">
-      </div>
-      <button id="btnAnalizar">Analizar plantilla</button>
-    </div>
-
-    <div class="seccion" id="seccionDiagnostico" hidden>
-      <h2><span class="num">2</span>Diagnóstico</h2>
-      <div class="dos-columnas">
-        <div>
-          <strong style="font-size:13px;">Tags del Word vs Excel</strong>
-          <div id="tablaTags"></div>
-        </div>
-        <div>
-          <strong style="font-size:13px;">Columnas del Excel sin tag en Word</strong>
-          <div id="tablaSobrantes"></div>
-        </div>
-      </div>
-      <div class="estado" id="estadoGeneral"></div>
-    </div>
-
-    <div class="seccion" id="seccionGenerar" hidden>
-      <h2><span class="num">3</span>Generar y descargar</h2>
-      <p class="info-filas" id="infoFilas"></p>
-      <button id="btnGenerar" disabled>Generar Word y descargar ZIP</button>
-      <div class="barra-contenedor"><div class="barra" id="barraProgreso"></div></div>
-      <div class="estado-texto" id="estadoTexto"></div>
-      <div class="log" id="log"></div>
-    </div>
-
-  </div>
-
-  <footer>
-    <strong>Siguiente paso:</strong> cuando se descargue el ZIP, descomprímelo y corre tu script VBS local para convertir los .docx a PDF.<br>
-    Esta página no envía nada a ningún servidor: el Excel y la plantilla se procesan solo en tu navegador.
-  </footer>
-
-</div>
+<button onclick="generar()">Generar</button>
 
 <script>
-(function(){
-  const TAGS_IGNORADOS = new Set(['fecha']);
+async function generar() {
 
-  const inputExcel = document.getElementById('inputExcel');
-  const inputWord = document.getElementById('inputWord');
-  const btnAnalizar = document.getElementById('btnAnalizar');
-  const btnGenerar = document.getElementById('btnGenerar');
-  const seccionDiagnostico = document.getElementById('seccionDiagnostico');
-  const seccionGenerar = document.getElementById('seccionGenerar');
-  const tablaTags = document.getElementById('tablaTags');
-  const tablaSobrantes = document.getElementById('tablaSobrantes');
-  const estadoGeneral = document.getElementById('estadoGeneral');
-  const infoFilas = document.getElementById('infoFilas');
-  const barraProgreso = document.getElementById('barraProgreso');
-  const estadoTexto = document.getElementById('estadoTexto');
-  const logEl = document.getElementById('log');
-  const sello = document.getElementById('sello');
-  const selloTexto = document.getElementById('selloTexto');
+  const excelFile = document.getElementById("excel").files[0];
+  const wordFile = document.getElementById("word").files[0];
 
-  let plantillaBuffer = null;
-  let filasExcel = [];
-  let columnasExcel = new Set();
-  let tagsPlantilla = new Set();
-
-  function fechaHoy(){
-    const d = new Date();
-    const dd = String(d.getDate()).padStart(2,'0');
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    return `${dd}/${mm}/${d.getFullYear()}`;
+  if (!excelFile || !wordFile) {
+    alert("Sube ambos archivos");
+    return;
   }
 
-  function sanitizeFilename(nombre){
-    return nombre.replace(/[\\/:*?"<>|]/g,'_').trim();
+  // ✅ VALIDAR LIBRERÍAS
+  if (typeof Docxtemplater === 'undefined') {
+    alert("Docxtemplater no cargó");
+    return;
   }
 
-  async function leerExcel(file){
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, {type:'array'});
-    const hoja = wb.Sheets[wb.SheetNames[0]];
-    const filas = XLSX.utils.sheet_to_json(hoja, {defval:''});
-    return filas.map(fila => {
-      const out = {};
-      for (const key in fila){
-        const k = key.toString().trim().toLowerCase();
-        let v = fila[key];
-        if (v === null || v === undefined) v = '';
-        out[k] = String(v).trim();
-      }
-      return out;
-    });
+  if (typeof PizZip === 'undefined') {
+    alert("PizZip no cargó");
+    return;
   }
 
-  function actualizarSello(estado, texto){
-    sello.className = 'sello ' + estado;
-    selloTexto.textContent = texto;
-  }
+  // ✅ LEER EXCEL
+  const excelBuffer = await excelFile.arrayBuffer();
+  const workbook = XLSX.read(excelBuffer, { type: "array" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const data = XLSX.utils.sheet_to_json(sheet);
 
-  function renderDiagnostico(){
-    const tagsRelevantes = [...tagsPlantilla].filter(t => !TAGS_IGNORADOS.has(t)).sort();
-    const faltantes = tagsRelevantes.filter(t => !columnasExcel.has(t));
-    const sobrantes = [...columnasExcel].filter(c => !tagsPlantilla.has(c) || TAGS_IGNORADOS.has(c)).sort();
+  // ✅ LEER WORD
+  const wordBuffer = await wordFile.arrayBuffer();
 
-    let html = '<table><thead><tr><th>Tag en Word</th><th>Estado</th></tr></thead><tbody>';
-    for (const tag of tagsRelevantes){
-      const ok = columnasExcel.has(tag);
-      html += `<tr><td><code>{{${tag}}}</code></td><td class="${ok ? 'ok' : 'fail'}">${ok ? '✓ OK' : '✗ No está en el Excel'}</td></tr>`;
-    }
-    html += '</tbody></table>';
-    if (tagsRelevantes.length === 0) html = '<p class="ok-msg">La plantilla no tiene tags {{ }} detectables.</p>';
-    tablaTags.innerHTML = html;
+  const zipSalida = new JSZip();
 
-    if (sobrantes.length){
-      tablaSobrantes.innerHTML = '<table><thead><tr><th>Columna Excel</th><th>Estado</th></tr></thead><tbody>' +
-        sobrantes.map(c => `<tr><td>${c}</td><td class="warn">Sin tag en Word</td></tr>`).join('') +
-        '</tbody></table>';
-    } else {
-      tablaSobrantes.innerHTML = '<p class="ok-msg">Todas las columnas del Excel tienen tag en el Word.</p>';
-    }
-
-    infoFilas.textContent = `${filasExcel.length} fila(s) detectada(s) — se generarán ${filasExcel.length} certificado(s).`;
-
-    if (faltantes.length){
-      estadoGeneral.className = 'estado fail';
-      estadoGeneral.textContent = `✗ ${faltantes.length} tag(s) del Word no están en el Excel. Corrige y vuelve a analizar.`;
-      btnGenerar.disabled = true;
-      actualizarSello('pendiente', 'PENDIENTE');
-    } else {
-      estadoGeneral.className = 'estado ok';
-      estadoGeneral.textContent = '✓ Todos los tags del Word coinciden con el Excel.';
-      btnGenerar.disabled = false;
-      actualizarSello('listo', 'LISTO');
-    }
-  }
-
-  async function analizarPlantilla(){
-    const excelFile = inputExcel.files[0];
-    const wordFile = inputWord.files[0];
-
-    if (!excelFile || !wordFile){
-      alert('Selecciona el Excel y la plantilla Word antes de analizar.');
-      return;
-    }
-    if (!excelFile.name.toLowerCase().endsWith('.xlsx')){
-      alert('El archivo de datos debe ser .xlsx');
-      return;
-    }
-    if (!wordFile.name.toLowerCase().endsWith('.docx')){
-      alert('La plantilla debe ser .docx');
-      return;
-    }
-
-    btnAnalizar.disabled = true;
-    btnAnalizar.textContent = 'Analizando...';
+  for (let i = 0; i < data.length; i++) {
 
     try {
-      filasExcel = await leerExcel(excelFile);
-      if (filasExcel.length === 0){
-        throw new Error('El Excel no tiene filas de datos.');
-      }
-      columnasExcel = new Set();
-      filasExcel.forEach(f => Object.keys(f).forEach(k => columnasExcel.add(k)));
 
-      plantillaBuffer = await wordFile.arrayBuffer();
-      
-      // Enlace dinámico con window para evitar el error "is not defined"
-      const PizZipConstructor = window.PizZip || window.pizZip;
-      if (!PizZipConstructor) {
-         throw new Error("La librería estructural (PizZip) no cargó correctamente en el navegador.");
-      }
-      
-      const zip = new PizZipConstructor(plantillaBuffer);
-      const doc = new window.docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-      const inspect = doc.getInspector();
-      const tagsMapeados = inspect.getTags();
-      
-      tagsPlantilla = new Set();
-      Object.keys(tagsMapeados).forEach(tag => {
-        tagsPlantilla.add(tag.trim().toLowerCase());
+      const fila = {};
+
+      // normalizar keys a minúsculas
+      Object.keys(data[i]).forEach(k => {
+        fila[k.toLowerCase()] = data[i][k];
       });
 
-      renderDiagnostico();
-      seccionDiagnostico.hidden = false;
-      seccionGenerar.hidden = false;
-      logEl.textContent = '';
-      estadoTexto.textContent = '';
-      barraProgreso.style.width = '0%';
+      const zip = new PizZip(wordBuffer);
 
-    } catch (e) {
-      alert('Error al analizar los archivos: ' + e.message);
-    } finally {
-      btnAnalizar.disabled = false;
-      btnAnalizar.textContent = 'Analizar plantilla';
+      const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true
+      });
+
+      // ✅ RENDER
+      doc.render(fila);
+
+      const blob = doc.getZip().generate({
+        type: "blob",
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      });
+
+      const nombre = (fila.poliza || ("doc_" + (i + 1))) + ".docx";
+
+      zipSalida.file(nombre, blob);
+
+    } catch (error) {
+
+      console.log("ERROR DETALLE:", error);
+      console.log("PROPERTIES:", error.properties);
+
+      alert("Error en fila " + (i + 1) + ": " + error.message);
+      return;
     }
   }
 
-  async function generarCertificados(){
-    if (!plantillaBuffer || filasExcel.length === 0) return;
+  // ✅ DESCARGA ZIP
+  const contenido = await zipSalida.generateAsync({ type: "blob" });
 
-    btnGenerar.disabled = true;
-    logEl.textContent = '';
-    barraProgreso.style.width = '0%';
-    estadoTexto.textContent = 'Iniciando...';
-
-    const zipSalida = new JSZip();
-    const fecha = fechaHoy();
-    const errores = [];
-    let generados = 0;
-
-    const PizZipConstructor = window.PizZip || window.pizZip;
-
-    for (let i = 0; i < filasExcel.length; i++){
-      const fila = Object.assign({}, filasExcel[i], {fecha});
-
-      try {
-        const zipInterno = new PizZipConstructor(plantillaBuffer);
-
-        const doc = new window.docxtemplater(zipInterno, {
-            paragraphLoop: true,
-            linebreaks: true,
-        });
-
-        // Fusionar datos respetando fuentes, tablas, saltos y negritas originales
-        doc.render(fila);
-
-        const blobDocumento = doc.getZip().generate({
-            type: 'blob',
-            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        });
-
-        const nro = (fila.nro || '').trim();
-        const asegurado = (fila.asegurado || '').trim();
-        const poliza = (fila.poliza || '').trim();
-        let nombre = nro ? `${nro}_${asegurado}_${poliza}` : `${asegurado}_${poliza}`;
-        nombre = sanitizeFilename(nombre) || `certificado_${i + 1}`;
-
-        zipSalida.file(`${nombre}.docx`, blobDocumento);
-        generados++;
-
-      } catch (e) {
-        errores.push(`Fila ${i + 2}: ${e.message}`);
-      }
-
-      const progreso = Math.round(((i + 1) / filasExcel.length) * 100);
-      barraProgreso.style.width = progreso + '%';
-      estadoTexto.textContent = `Generando ${i + 1} de ${filasExcel.length}...`;
-      await new Promise(r => setTimeout(r, 0));
-    }
-
-    estadoTexto.textContent = 'Empaquetando ZIP...';
-    const zipBlob = await zipSalida.generateAsync({type:'blob'});
-
-    const ahora = new Date();
-    const marca = `${String(ahora.getDate()).padStart(2,'0')}${String(ahora.getMonth()+1).padStart(2,'0')}${ahora.getFullYear()}_${String(ahora.getHours()).padStart(2,'0')}${String(ahora.getMinutes()).padStart(2,'0')}`;
-    const nombreZip = `certificados_${marca}.zip`;
-
-    const url = URL.createObjectURL(zipBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nombreZip;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-
-    estadoTexto.textContent = `✓ ${generados} certificado(s) generado(s)` + (errores.length ? ` — ${errores.length} con error` : '');
-
-    if (errores.length){
-      logEl.innerHTML = '<strong>Avisos:</strong><br>' + errores.map(e => '⚠️ ' + e).join('<br>');
-    }
-
-    btnGenerar.disabled = false;
-  }
-
-  btnAnalizar.addEventListener('click', analizarPlantilla);
-  btnGenerar.addEventListener('click', generarCertificados);
-})();
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(contenido);
+  link.download = "documentos.zip";
+  link.click();
+}
 </script>
+
 </body>
 </html>
