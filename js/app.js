@@ -27,6 +27,16 @@
     return XLSX.utils.sheet_to_json(hoja, {defval:''});
   }
 
+  function normalizar(texto) {
+    return texto
+      .toString()
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, '') // quita tildes
+      .replace(/\s+/g, ''); // quita espacios
+  }
+
   function resetTodo(){
     inputExcel.value = '';
     inputWord.value = '';
@@ -47,7 +57,7 @@
 
   btnLimpiar.addEventListener('click', resetTodo);
 
-  // ✅ NUEVA FUNCIÓN
+  // ✅ EXTRAER VARIABLES DEL WORD
   function extraerVariablesWord(buffer) {
     const zip = new PizZip(buffer);
     const xml = zip.files["word/document.xml"].asText();
@@ -57,7 +67,7 @@
     let match;
 
     while ((match = regex.exec(xml)) !== null) {
-      variables.add(match[1].trim());
+      variables.add(normalizar(match[1]));
     }
 
     return [...variables];
@@ -75,7 +85,8 @@
 
       if (filasExcel.length === 0) throw new Error("El Excel no contiene registros.");
 
-      const columnasExcel = Object.keys(filasExcel[0]).map(c => c.trim().toLowerCase());
+      const columnasOriginales = Object.keys(filasExcel[0]);
+      const columnasExcel = columnasOriginales.map(c => normalizar(c));
       const variablesWord = extraerVariablesWord(plantillaBuffer);
 
       let html = `<strong>Validación de variables (Word vs Excel):</strong><br><br>`;
@@ -84,7 +95,7 @@
       let correctos = 0;
 
       variablesWord.forEach(v => {
-        const existe = columnasExcel.includes(v.toLowerCase());
+        const existe = columnasExcel.includes(v);
 
         if (existe) {
           html += `✅ ${v} <span style="color:green;">(OK)</span><br>`;
@@ -97,9 +108,10 @@
 
       html += `<br><strong>Columnas en Excel sin uso:</strong><br>`;
 
-      columnasExcel.forEach(c => {
-        if (!variablesWord.map(v => v.toLowerCase()).includes(c)) {
-          html += `⚠ ${c}<br>`;
+      columnasOriginales.forEach((col, i) => {
+        const colNormalizada = columnasExcel[i];
+        if (!variablesWord.includes(colNormalizada)) {
+          html += `⚠ ${col}<br>`;
         }
       });
 
