@@ -20,21 +20,30 @@
     return nombre.replace(/[\\/:*?"<>|]/g,'_').trim();
   }
 
-  async function leerExcel(file){
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, {type:'array'});
-    const hoja = wb.Sheets[wb.SheetNames[0]];
-    return XLSX.utils.sheet_to_json(hoja, {defval:''});
-  }
-
+  // ✅ NORMALIZACIÓN ROBUSTA
   function normalizar(texto) {
     return texto
       .toString()
       .trim()
       .toLowerCase()
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, '') // quita tildes
-      .replace(/\s+/g, ''); // quita espacios
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '');
+  }
+
+  // ✅ LECTURA CORREGIDA DEL EXCEL
+  async function leerExcel(file){
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array'});
+    const hoja = wb.Sheets[wb.SheetNames[0]];
+
+    const data = XLSX.utils.sheet_to_json(hoja, {
+      range: 1, // 🔥 SALTA FILA INCORRECTA
+      defval: '',
+      raw: false
+    });
+
+    return data;
   }
 
   function resetTodo(){
@@ -75,7 +84,7 @@
 
   btnAnalizar.addEventListener('click', async () => {
     if (!inputExcel.files[0] || !inputWord.files[0]) {
-      alert('Por favor, selecciona ambos archivos (.xlsx y .docx)');
+      alert('Selecciona Excel y Word');
       return;
     }
 
@@ -83,13 +92,15 @@
       filasExcel = await leerExcel(inputExcel.files[0]);
       plantillaBuffer = await inputWord.files[0].arrayBuffer();
 
-      if (filasExcel.length === 0) throw new Error("El Excel no contiene registros.");
+      if (filasExcel.length === 0) throw new Error("Excel vacío");
+
+      console.log("Columnas detectadas:", Object.keys(filasExcel[0]));
 
       const columnasOriginales = Object.keys(filasExcel[0]);
       const columnasExcel = columnasOriginales.map(c => normalizar(c));
       const variablesWord = extraerVariablesWord(plantillaBuffer);
 
-      let html = `<strong>Validación de variables (Word vs Excel):</strong><br><br>`;
+      let html = `<strong>Validación Word vs Excel:</strong><br><br>`;
 
       let errores = 0;
       let correctos = 0;
@@ -98,19 +109,18 @@
         const existe = columnasExcel.includes(v);
 
         if (existe) {
-          html += `✅ ${v} <span style="color:green;">(OK)</span><br>`;
+          html += `✅ ${v} (OK)<br>`;
           correctos++;
         } else {
-          html += `❌ ${v} <span style="color:red;">(NO EXISTE en Excel)</span><br>`;
+          html += `❌ ${v} (NO EXISTE en Excel)<br>`;
           errores++;
         }
       });
 
-      html += `<br><strong>Columnas en Excel sin uso:</strong><br>`;
+      html += `<br><strong>Columnas Excel sin uso:</strong><br>`;
 
       columnasOriginales.forEach((col, i) => {
-        const colNormalizada = columnasExcel[i];
-        if (!variablesWord.includes(colNormalizada)) {
+        if (!variablesWord.includes(columnasExcel[i])) {
           html += `⚠ ${col}<br>`;
         }
       });
@@ -118,35 +128,30 @@
       tablaColumnas.innerHTML = html;
 
       estadoGeneral.textContent = errores === 0
-        ? `✅ Todo correcto (${correctos} variables mapeadas)`
-        : `⚠ Se detectaron ${errores} campos faltantes en el Excel`;
+        ? `✅ Perfecto (${correctos} variables OK)`
+        : `⚠ ${errores} campos faltantes`;
 
-      infoFilas.textContent = `Se procesará un lote de ${filasExcel.length} certificados.`;
+      infoFilas.textContent = `Registros: ${filasExcel.length}`;
 
-      // ✅ BLOQUEO SI HAY ERRORES
       btnGenerar.disabled = errores > 0;
 
       seccionDiagnostico.hidden = false;
       seccionGenerar.hidden = false;
 
     } catch (e) {
-      alert("Error leyendo insumos: " + e.message);
+      alert("Error: " + e.message);
     }
   });
 
   btnGenerar.addEventListener('click', async () => {
-    const PizZipConstructor = window.PizZip || (typeof PizZip !== 'undefined' ? PizZip : null);
-    const DocxConstructor = window.docxtemplater || (typeof docxtemplater !== 'undefined' ? docxtemplater : null);
 
-    if (!PizZipConstructor || !DocxConstructor) {
-      alert("Error crítico: librerías no disponibles.");
-      return;
-    }
+    const PizZipConstructor = window.PizZip || PizZip;
+    const DocxConstructor = window.docxtemplater || docxtemplater;
 
     btnGenerar.disabled = true;
     logEl.textContent = '';
     barraProgreso.style.width = '0%';
-    
+
     const zipSalida = new JSZip();
     let generados = 0;
     const errores = [];
@@ -154,10 +159,9 @@
     for (let i = 0; i < filasExcel.length; i++) {
       const filaOriginal = filasExcel[i];
       const filaProcesada = { fecha: new Date().toLocaleDateString('es-PE') };
-      
+
       for (const key in filaOriginal) {
-        filaProcesada[key.trim().toLowerCase()] = String(filaOriginal[key]).trim();
-        filaProcesada[key] = String(filaOriginal[key]).trim();
+        filaProcesada[normalizar(key)] = String(filaOriginal[key]).trim();
       }
 
       try {
@@ -176,54 +180,42 @@
           mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         });
 
-        const nro = filaProcesada.nro || '';
-        const asegurado = filaProcesada.asegurado || '';
-        const poliza = filaProcesada.poliza || '';
+        const nombre = sanitizeFilename(
+          `${filaProcesada.nro || ''}_${filaProcesada.asegurado || ''}_${filaProcesada.poliza || ''}`
+        );
 
-        let nombreArchivo = nro ? `${nro}_${asegurado}_${poliza}` : `${asegurado}_${poliza}`;
-        nombreArchivo = sanitizeFilename(nombreArchivo) || `Certificado_${i+1}`;
-
-        zipSalida.file(`${nombreArchivo}.docx`, blobDoc);
+        zipSalida.file(`${nombre || 'Certificado_'+i}.docx`, blobDoc);
         generados++;
 
       } catch (err) {
-        let detalle = err.message;
-
-        if (err.properties?.errors) {
-          detalle = err.properties.errors
-            .map(e => e.properties?.explanation || e.properties?.id || e.name)
-            .join(" | ");
-        }
-
-        errores.push(`Fila ${i + 2}: ${detalle}`);
+        errores.push(`Fila ${i+2}: ${err.message}`);
       }
 
       barraProgreso.style.width = Math.round(((i + 1) / filasExcel.length) * 100) + '%';
-      estadoTexto.textContent = `Procesando: ${i + 1} de ${filasExcel.length}...`;
+      estadoTexto.textContent = `Procesando ${i+1}/${filasExcel.length}`;
       await new Promise(r => setTimeout(r, 1));
     }
 
     if (generados > 0) {
-      estadoTexto.textContent = 'Empaquetando lote final...';
+      estadoTexto.textContent = 'Empaquetando…';
 
-      const zipBlob = await zipSalida.generateAsync({type: 'blob'});
+      const zipBlob = await zipSalida.generateAsync({type:'blob'});
       const url = URL.createObjectURL(zipBlob);
 
       const a = document.createElement('a');
       a.href = url;
-      a.download = `DOCUMENTOS.zip`;
-      document.body.appendChild(a);
+      a.download = "DOCUMENTOS.zip";
       a.click();
-      document.body.removeChild(a);
 
       URL.revokeObjectURL(url);
-      estadoTexto.textContent = `✅ ${generados} archivos generados correctamente.`;
+      estadoTexto.textContent = `✅ ${generados} generados`;
     }
 
     if (errores.length) {
-      logEl.innerHTML = '<strong>Alertas:</strong><br>' + errores.join('<br>');
+      logEl.innerHTML = errores.join('<br>');
     }
 
     btnGenerar.disabled = false;
   });
-})();
+
+})(); 
