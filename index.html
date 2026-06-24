@@ -67,13 +67,27 @@
                     <p id="infoFilas" class="text-sm text-gray-600 mb-4"></p>
 
                     <div class="space-y-3">
-                        <button id="btnGenerar" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2.5 px-6 rounded-md transition duration-200 flex items-center gap-2 cursor-pointer shadow">
-                            Generar Certificados (.ZIP)
-                        </button>
 
+                        <!-- BOTONES -->
+                        <div class="flex flex-col sm:flex-row gap-3">
+
+                            <button id="btnGenerar" 
+                                class="w-full sm:w-auto bg-gray-800 hover:bg-gray-900 text-white font-bold py-2.5 px-6 rounded-md transition duration-200 flex items-center justify-center gap-2 cursor-pointer shadow">
+                                Generar Certificados (.ZIP)
+                            </button>
+
+                            <a href="automation/convertir.vbs" download="convertir.vbs"
+                               class="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-6 rounded-md transition duration-200 flex items-center justify-center gap-2 cursor-pointer shadow text-center">
+                                📥 Descargar Convertidor PDF (VBS)
+                            </a>
+
+                        </div>
+
+                        <!-- PROGRESO -->
                         <div class="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden">
                             <div id="barraProgreso" class="bg-red-600 h-full w-0 transition-all duration-150"></div>
                         </div>
+
                         <div id="estadoTexto" class="text-xs text-gray-500 font-medium min-h-[16px]"></div>
                         <div id="log" class="text-xs text-red-600 font-mono max-h-32 overflow-y-auto mt-1"></div>
                     </div>
@@ -81,7 +95,6 @@
             </div>
         </main>
     </div>
-
 
 </body>
 </html>
