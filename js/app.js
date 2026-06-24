@@ -31,19 +31,18 @@
     return nombre.replace(/[\\/:*?"<>|]/g,'_').trim();
   }
 
-  // ✅ LECTURA INTELIGENTE DEL EXCEL (🔥 SOLUCIÓN CLAVE)
+  // ✅ LECTURA INTELIGENTE DEL EXCEL
   async function leerExcel(file){
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, {type:'array'});
     const hoja = wb.Sheets[wb.SheetNames[0]];
 
-    // Leer todo como matriz
     const raw = XLSX.utils.sheet_to_json(hoja, {
       header: 1,
       defval: ''
     });
 
-    // 🔥 Detectar automáticamente la fila de encabezados
+    // 🔥 detectar header automáticamente
     let filaHeader = raw.findIndex(row =>
       row.some(cell => {
         const c = normalizar(cell);
@@ -55,7 +54,7 @@
       throw new Error("No se encontró fila de encabezados válida");
     }
 
-    console.log("Header detectado en fila:", filaHeader);
+    console.log("Header detectado:", filaHeader);
 
     const data = XLSX.utils.sheet_to_json(hoja, {
       range: filaHeader,
@@ -86,17 +85,21 @@
 
   btnLimpiar.addEventListener('click', resetTodo);
 
-  // ✅ VARIABLES DEL WORD
+  // ✅ EXTRAER VARIABLES DEL WORD (🔥 FIX XML)
   function extraerVariablesWord(buffer) {
     const zip = new PizZip(buffer);
-    const xml = zip.files["word/document.xml"].asText();
+    let xml = zip.files["word/document.xml"].asText();
+
+    // 🔥 quitar todas las etiquetas XML
+    xml = xml.replace(/<[^>]+>/g, '');
 
     const regex = /{{(.*?)}}/g;
     const variables = new Set();
-    let match;
 
+    let match;
     while ((match = regex.exec(xml)) !== null) {
-      variables.add(normalizar(match[1]));
+      const limpio = normalizar(match[1]);
+      if (limpio) variables.add(limpio);
     }
 
     return [...variables];
@@ -119,8 +122,8 @@
       const columnasExcel = columnasOriginales.map(c => normalizar(c));
       const variablesWord = extraerVariablesWord(plantillaBuffer);
 
-      console.log("Columnas Excel:", columnasOriginales);
-      console.log("Variables Word:", variablesWord);
+      console.log("Columnas:", columnasOriginales);
+      console.log("Word:", variablesWord);
 
       let html = `<strong>Validación Word vs Excel:</strong><br><br>`;
 
@@ -150,7 +153,7 @@
       tablaColumnas.innerHTML = html;
 
       estadoGeneral.textContent = errores === 0
-        ? `✅ Perfecto (${correctos} OK)`
+        ? `✅ Todo correcto (${correctos} OK)`
         : `⚠ ${errores} campos faltantes`;
 
       infoFilas.textContent = `Registros: ${filasExcel.length}`;
@@ -165,7 +168,7 @@
     }
   });
 
-  // ✅ GENERAR
+  // ✅ GENERAR DOCUMENTOS
   btnGenerar.addEventListener('click', async () => {
 
     const zipSalida = new JSZip();
@@ -194,9 +197,7 @@
 
         doc.render(filaProcesada);
 
-        const blob = doc.getZip().generate({
-          type: 'blob'
-        });
+        const blob = doc.getZip().generate({ type: 'blob' });
 
         const nombre = sanitizeFilename(
           `${filaProcesada.nro || ''}_${filaProcesada.asegurado || ''}_${filaProcesada.poliza || ''}`
@@ -209,19 +210,15 @@
         errores.push(`Fila ${i+2}: ${err.message}`);
       }
 
-      barraProgreso.style.width =
-        Math.round(((i + 1) / filasExcel.length) * 100) + '%';
-
-      estadoTexto.textContent =
-        `Procesando ${i+1} de ${filasExcel.length}`;
-
+      barraProgreso.style.width = Math.round(((i + 1) / filasExcel.length) * 100) + '%';
+      estadoTexto.textContent = `Procesando ${i+1}/${filasExcel.length}`;
       await new Promise(r => setTimeout(r, 1));
     }
 
     if (generados > 0) {
       estadoTexto.textContent = 'Empaquetando…';
 
-      const zipBlob = await zipSalida.generateAsync({type:'blob'});
+      const zipBlob = await zipSalida.generateAsync({ type:'blob' });
       const url = URL.createObjectURL(zipBlob);
 
       const a = document.createElement('a');
@@ -230,7 +227,6 @@
       a.click();
 
       URL.revokeObjectURL(url);
-
       estadoTexto.textContent = `✅ ${generados} generados`;
     }
 
