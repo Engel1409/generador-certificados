@@ -47,6 +47,22 @@
 
   btnLimpiar.addEventListener('click', resetTodo);
 
+  // ✅ NUEVA FUNCIÓN
+  function extraerVariablesWord(buffer) {
+    const zip = new PizZip(buffer);
+    const xml = zip.files["word/document.xml"].asText();
+
+    const regex = /{{(.*?)}}/g;
+    const variables = new Set();
+    let match;
+
+    while ((match = regex.exec(xml)) !== null) {
+      variables.add(match[1].trim());
+    }
+
+    return [...variables];
+  }
+
   btnAnalizar.addEventListener('click', async () => {
     if (!inputExcel.files[0] || !inputWord.files[0]) {
       alert('Por favor, selecciona ambos archivos (.xlsx y .docx)');
@@ -59,27 +75,59 @@
 
       if (filasExcel.length === 0) throw new Error("El Excel no contiene registros.");
 
-      const columnas = Object.keys(filasExcel[0]);
-      tablaColumnas.innerHTML = `<strong>Columnas encontradas listas para inyectar al Word:</strong><br>` + 
-        columnas.map(c => `• ${c}`).join('<br>');
+      const columnasExcel = Object.keys(filasExcel[0]).map(c => c.trim().toLowerCase());
+      const variablesWord = extraerVariablesWord(plantillaBuffer);
+
+      let html = `<strong>Validación de variables (Word vs Excel):</strong><br><br>`;
+
+      let errores = 0;
+      let correctos = 0;
+
+      variablesWord.forEach(v => {
+        const existe = columnasExcel.includes(v.toLowerCase());
+
+        if (existe) {
+          html += `✅ ${v} <span style="color:green;">(OK)</span><br>`;
+          correctos++;
+        } else {
+          html += `❌ ${v} <span style="color:red;">(NO EXISTE en Excel)</span><br>`;
+          errores++;
+        }
+      });
+
+      html += `<br><strong>Columnas en Excel sin uso:</strong><br>`;
+
+      columnasExcel.forEach(c => {
+        if (!variablesWord.map(v => v.toLowerCase()).includes(c)) {
+          html += `⚠ ${c}<br>`;
+        }
+      });
+
+      tablaColumnas.innerHTML = html;
+
+      estadoGeneral.textContent = errores === 0
+        ? `✅ Todo correcto (${correctos} variables mapeadas)`
+        : `⚠ Se detectaron ${errores} campos faltantes en el Excel`;
 
       infoFilas.textContent = `Se procesará un lote de ${filasExcel.length} certificados.`;
-      estadoGeneral.textContent = "✓ Motores listos. Estructura cargada correctamente en la memoria de la PC.";
-      
+
+      // ✅ BLOQUEO SI HAY ERRORES
+      btnGenerar.disabled = errores > 0;
+
       seccionDiagnostico.hidden = false;
       seccionGenerar.hidden = false;
+
     } catch (e) {
       alert("Error leyendo insumos: " + e.message);
     }
   });
 
   btnGenerar.addEventListener('click', async () => {
-    // Verificación explícita de existencia del objeto en la ventana del navegador
     const PizZipConstructor = window.PizZip || (typeof PizZip !== 'undefined' ? PizZip : null);
     const DocxConstructor = window.docxtemplater || (typeof docxtemplater !== 'undefined' ? docxtemplater : null);
 
     if (!PizZipConstructor || !DocxConstructor) {
-      alert("Error crítico: Las librerías de empaquetado no se han inicializado en el navegador. Usa la extensión Live Server de VSC para saltar restricciones locales.");
+      alert("Error crítico: librerías no disponibles.");
       return;
     }
 
@@ -96,7 +144,6 @@
       const filaProcesada = { fecha: new Date().toLocaleDateString('es-PE') };
       
       for (const key in filaOriginal) {
-        // Mapea tanto claves originales como en minúsculas por seguridad
         filaProcesada[key.trim().toLowerCase()] = String(filaOriginal[key]).trim();
         filaProcesada[key] = String(filaOriginal[key]).trim();
       }
@@ -107,13 +154,10 @@
           paragraphLoop: true,
           linebreaks: true,
           delimiters: { start: '{{', end: '}}' },
-          nullGetter() {
-            return '';
-          }
+          nullGetter() { return ''; }
         });
 
         doc.render(filaProcesada);
-        console.log("Fila procesada:", filaProcesada);
 
         const blobDoc = doc.getZip().generate({
           type: 'blob',
@@ -123,30 +167,20 @@
         const nro = filaProcesada.nro || '';
         const asegurado = filaProcesada.asegurado || '';
         const poliza = filaProcesada.poliza || '';
+
         let nombreArchivo = nro ? `${nro}_${asegurado}_${poliza}` : `${asegurado}_${poliza}`;
         nombreArchivo = sanitizeFilename(nombreArchivo) || `Certificado_${i+1}`;
 
         zipSalida.file(`${nombreArchivo}.docx`, blobDoc);
         generados++;
-      } catch (err) {
-        console.log("ERROR COMPLETO", err);
 
+      } catch (err) {
         let detalle = err.message;
 
-        if (err.properties) {
-          if (err.properties.errors) {
-            err.properties.errors.forEach((e, idx) => {
-              console.log("ERROR", idx + 1);
-              console.log(e.properties);
-            });
-
-            detalle = err.properties.errors
-              .map(e => e.properties?.explanation || e.properties?.id || e.name)
-              .join(" | ");
-
-          } else if (err.properties.explanation) {
-            detalle = err.properties.explanation;
-          }
+        if (err.properties?.errors) {
+          detalle = err.properties.errors
+            .map(e => e.properties?.explanation || e.properties?.id || e.name)
+            .join(" | ");
         }
 
         errores.push(`Fila ${i + 2}: ${detalle}`);
@@ -159,21 +193,25 @@
 
     if (generados > 0) {
       estadoTexto.textContent = 'Empaquetando lote final...';
+
       const zipBlob = await zipSalida.generateAsync({type: 'blob'});
       const url = URL.createObjectURL(zipBlob);
+
       const a = document.createElement('a');
       a.href = url;
       a.download = `DOCUMENTOS.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+
       URL.revokeObjectURL(url);
-      estadoTexto.textContent = `✓ ¡Éxito total! ${generados} archivos descargados localmente en tu ZIP.`;
+      estadoTexto.textContent = `✅ ${generados} archivos generados correctamente.`;
     }
 
     if (errores.length) {
       logEl.innerHTML = '<strong>Alertas:</strong><br>' + errores.join('<br>');
     }
+
     btnGenerar.disabled = false;
   });
 })();
