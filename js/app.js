@@ -190,9 +190,16 @@
       const filaOriginal = filasExcel[i];
 
       // ✅ fecha generada automáticamente
-      const filaProcesada = {
-        fecha: new Date().toLocaleDateString('es-PE')
-      };
+      const hoy = new Date();
+
+const fechaFormateada =
+  String(hoy.getDate()).padStart(2, '0') + '/' +
+  String(hoy.getMonth() + 1).padStart(2, '0') + '/' +
+  hoy.getFullYear();
+
+const filaProcesada = {
+  fecha: fechaFormateada
+};
 
       for (const key in filaOriginal) {
         filaProcesada[normalizar(key)] = String(filaOriginal[key]).trim();
