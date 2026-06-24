@@ -16,7 +16,10 @@
   let plantillaBuffer = null;
   let filasExcel = [];
 
-  // ✅ NORMALIZACIÓN ROBUSTA
+  // ✅ CAMPOS QUE NO VIENEN DEL EXCEL
+  const camposIgnorados = ['fecha'];
+
+  // ✅ NORMALIZACIÓN
   function normalizar(texto) {
     return texto
       .toString()
@@ -42,7 +45,6 @@
       defval: ''
     });
 
-    // 🔥 detectar header automáticamente
     let filaHeader = raw.findIndex(row =>
       row.some(cell => {
         const c = normalizar(cell);
@@ -53,8 +55,6 @@
     if (filaHeader === -1) {
       throw new Error("No se encontró fila de encabezados válida");
     }
-
-    console.log("Header detectado:", filaHeader);
 
     const data = XLSX.utils.sheet_to_json(hoja, {
       range: filaHeader,
@@ -85,12 +85,12 @@
 
   btnLimpiar.addEventListener('click', resetTodo);
 
-  // ✅ EXTRAER VARIABLES DEL WORD (🔥 FIX XML)
+  // ✅ EXTRAER VARIABLES DEL WORD
   function extraerVariablesWord(buffer) {
     const zip = new PizZip(buffer);
     let xml = zip.files["word/document.xml"].asText();
 
-    // 🔥 quitar todas las etiquetas XML
+    // 🔥 limpiar XML
     xml = xml.replace(/<[^>]+>/g, '');
 
     const regex = /{{(.*?)}}/g;
@@ -122,15 +122,19 @@
       const columnasExcel = columnasOriginales.map(c => normalizar(c));
       const variablesWord = extraerVariablesWord(plantillaBuffer);
 
-      console.log("Columnas:", columnasOriginales);
-      console.log("Word:", variablesWord);
-
       let html = `<strong>Validación Word vs Excel:</strong><br><br>`;
 
       let errores = 0;
       let correctos = 0;
 
       variablesWord.forEach(v => {
+
+        // ✅ IGNORAR CAMPOS AUTOMÁTICOS
+        if (camposIgnorados.includes(v)) {
+          html += `🟡 ${v} (GENERADO AUTOMÁTICO)<br>`;
+          return;
+        }
+
         const existe = columnasExcel.includes(v);
 
         if (existe) {
@@ -144,8 +148,10 @@
 
       html += `<br><strong>Columnas Excel sin uso:</strong><br>`;
 
+      const variablesFiltradas = variablesWord.filter(v => !camposIgnorados.includes(v));
+
       columnasOriginales.forEach((col, i) => {
-        if (!variablesWord.includes(columnasExcel[i])) {
+        if (!variablesFiltradas.includes(columnasExcel[i])) {
           html += `⚠ ${col}<br>`;
         }
       });
@@ -182,7 +188,11 @@
     for (let i = 0; i < filasExcel.length; i++) {
 
       const filaOriginal = filasExcel[i];
-      const filaProcesada = { fecha: new Date().toLocaleDateString('es-PE') };
+
+      // ✅ fecha generada automáticamente
+      const filaProcesada = {
+        fecha: new Date().toLocaleDateString('es-PE')
+      };
 
       for (const key in filaOriginal) {
         filaProcesada[normalizar(key)] = String(filaOriginal[key]).trim();
@@ -227,6 +237,7 @@
       a.click();
 
       URL.revokeObjectURL(url);
+
       estadoTexto.textContent = `✅ ${generados} generados`;
     }
 
@@ -237,4 +248,4 @@
     btnGenerar.disabled = false;
   });
 
-})(); 
+})();
