@@ -63,7 +63,7 @@
       tablaColumnas.innerHTML = `<strong>Columnas encontradas listas para inyectar al Word:</strong><br>` + 
         columnas.map(c => `• ${c}`).join('<br>');
 
-      infoFilas.textContent = `Se procesará un lote de ${filasExcel.length} certificados en paralelo.`;
+      infoFilas.textContent = `Se procesará un lote de ${filasExcel.length} certificados.`;
       estadoGeneral.textContent = "✓ Motores listos. Estructura cargada correctamente en la memoria de la PC.";
       
       seccionDiagnostico.hidden = false;
