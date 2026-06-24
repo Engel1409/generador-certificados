@@ -163,7 +163,7 @@
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Lote_Certificados_Procesados.zip`;
+      a.download = `DOCUMENTOS.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
