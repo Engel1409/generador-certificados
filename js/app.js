@@ -245,7 +245,7 @@ const filaProcesada = {
 
       URL.revokeObjectURL(url);
 
-      estadoTexto.textContent = `✅ ${generados} generados`;
+      estadoTexto.textContent = `✅ ${generados} certificados en Word generados`;
     }
 
     if (errores.length) {
